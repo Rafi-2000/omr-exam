@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bank Job Preparation OMR (500)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js for Progress Curves -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS for Excel Export (Library kept if needed later, but download logic removed) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', 'Hind Siliguri', sans-serif;
+            /* Colorful Gradient Background */
+            background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+            -webkit-print-color-adjust: exact;
+        }
+
+        /* OMR Bubble Styling */
+        .bubble {
+            width: 20px;
+            height: 20px;
+            border: 1px solid #4b5563;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px; 
+            font-weight: 600;
+            color: #1f2937;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            background-color: white;
+            user-select: none;
+            margin: 0 1px;
+            padding-top: 2px;
+            flex-shrink: 0; 
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        /* Locked State */
+        .bubble.locked {
+            cursor: not-allowed;
+            opacity: 0.6;
+            background-color: #f3f4f6;
+        }
+        .bubble.locked:hover {
+            background-color: #f3f4f6;
+            border-color: #4b5563;
+            color: #1f2937;
+            transform: none;
+        }
+
+        /* Hover only when active */
+        .bubble:not(.locked):hover {
+            background-color: #e0e7ff;
+            border-color: #4338ca;
+            color: #4338ca;
+            transform: scale(1.15);
+        }
+
+        .bubble.filled {
+            background-color: #1e1b4b; 
+            border-color: #1e1b4b;
+            color: #ffffff;
+            opacity: 1 !important;
+            transform: scale(1.0);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .bubble.key-filled {
+            background-color: #16a34a; 
+            border-color: #15803d;
+            color: #ffffff;
+            opacity: 1 !important;
+        }
+
+        .bubble.correct {
+            background-color: #16a34a !important; 
+            border-color: #15803d !important;
+            color: white !important;
+            opacity: 1 !important;
+            box-shadow: 0 0 5px #16a34a;
+        }
+        .bubble.wrong {
+            background-color: #dc2626 !important; 
+            border-color: #b91c1c !important;
+            color: white !important;
+            opacity: 1 !important;
+            box-shadow: 0 0 5px #dc2626;
+        }
+
+        /* Disabled Button Style */
+        .btn-disabled {
+            opacity: 0.5;
+            pointer-events: none;
+            filter: grayscale(100%);
+        }
+
+        /* Form Inputs Styling */
+        .paper-input-group {
+            display: flex;
+            align-items: center; 
+            margin-bottom: 0.5rem;
+        }
+        .paper-label {
+            font-weight: 700;
+            margin-right: 0.5rem;
+            white-space: nowrap;
+            color: #374151;
+            width: 70px; 
+            flex-shrink: 0;
+        }
+        .paper-input {
+            flex-grow: 1;
+            border: none;
+            border-bottom: 2px dotted #9ca3af;
+            background: transparent;
+            padding: 0.1rem 0.5rem;
+            outline: none;
+            font-family: inherit;
+            color: #111827;
+            border-radius: 4px;
+            height: 28px; 
+            transition: all 0.2s;
+        }
+        .paper-input:focus {
+            border-bottom: 2px solid #4f46e5;
+            background-color: rgba(255, 255, 255, 0.5);
+        }
+
+        /* Modal */
+        #progress-modal, #setup-modal {
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
+
+        /* PDF & Split View */
+        #pdf-container {
+            display: none; 
+            height: calc(100vh - 120px);
+            background: #f0f9ff; 
+            flex-grow: 1; 
+            min-width: 200px;
+        }
+        #omr-container {
+            width: 100%;
+            transition: width 0.1s;
+        }
+        .split-view #omr-container {
+            width: 50%;
+            overflow-y: auto;
+            overflow-x: auto; 
+            height: calc(100vh - 120px);
+            flex-shrink: 0; 
+        }
+        .split-view #pdf-container {
+            display: block;
+        }
+        #drag-handle {
+            display: none;
+            width: 12px;
+            cursor: col-resize;
+            background-color: #e5e7eb;
+            border-left: 1px solid #d1d5db;
+            border-right: 1px solid #d1d5db;
+            flex-shrink: 0;
+            position: relative;
+        }
+        .split-view #drag-handle { display: block; }
+
+        /* Custom Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #c7c7c7;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        /* Print Specifics */
+        @media print {
+            @page { margin: 0.2cm 0.4cm; size: A4 portrait; }
+            body { background: white; margin: 0; font-size: 9px; }
+            .no-print { display: none !important; }
+            .page-container { box-shadow: none; width: 100%; overflow: hidden; height: auto !important; padding: 0; background: white !important; }
+            #omr-grid { display: flex; justify-content: center; gap: 1mm; width: 100%; }
+            .omr-column { width: 19.8%; margin: 0; min-width: 0; }
+            .bubble { width: 10px; height: 10px; font-size: 6px; border-width: 0.5px; margin: 0 0.5px; padding-top: 1px; color: #000; border-color: #000; box-shadow: none; }
+            .question-row { padding: 0; line-height: 10px; }
+            .question-num { font-size: 6px; width: 12px; margin-right: 1px; line-height: 10px; }
+            h1 { font-size: 14px; }
+            .header-table td { height: 25px; }
+            #pdf-container, #drag-handle { display: none; }
+            select { appearance: none; -webkit-appearance: none; background: none; border-bottom: 1px dotted #000; }
+        }
+    </style>
+</head>
+<body class="min-h-screen p-2 md:p-4 flex flex-col h-screen overflow-hidden">
+
+    <!-- Control Panel -->
+    <div class="max-w-[1700px] w-full mx-auto mb-3 flex flex-col xl:flex-row justify-between items-center gap-3 no-print bg-white/90 backdrop-blur-sm shadow-lg rounded-2xl p-3 border border-indigo-100 flex-shrink-0 z-10 relative">
+        <!-- Left: Title & Info -->
+        <div class="flex items-center gap-4 z-20">
+            <div>
+                <h1 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">Job Preparation 2026</h1>
+                <div class="text-sm text-gray-600 flex gap-4 mt-2 font-medium">
+                    <label class="flex items-center gap-2 bg-indigo-50 px-2 py-1 rounded-lg border border-indigo-100">
+                        <span class="text-indigo-700">Neg. Mark:</span>
+                        <input type="number" id="neg-mark-val" value="0.25" step="0.25" class="w-20 border-2 border-indigo-200 focus:border-indigo-500 rounded px-2 py-0.5 text-center font-bold text-indigo-700 outline-none transition-colors">
+                    </label>
+                </div>
+            </div>
+        </div>       
+        
+        <!-- Timer (Slightly Left, Larger) -->
+        <div class="absolute left-[40%] top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 flex flex-col items-center">
+            <div class="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-gray-300 shadow-inner">
+                <div class="text-2xl font-mono font-bold text-gray-700 bg-white px-4 py-1 rounded-lg border border-gray-200 shadow-sm min-w-[120px] text-center" id="timer-display">00:00:00</div>
+                <input type="number" id="timer-input" placeholder="Min" class="w-16 border-2 border-gray-200 focus:border-blue-400 rounded-lg px-2 py-1.5 text-sm text-center outline-none transition-all" min="1">
+                    
+                <!-- Start Button -->
+                <button onclick="toggleTimer()" id="timer-toggle-btn" class="p-1.5 rounded bg-indigo-600 text-white hover:bg-indigo-700 transition shadow-sm" title="Start Exam">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                </button>
+                
+                <!-- Stop Button -->
+                <button onclick="stopExam()" id="timer-stop-btn" class="p-1.5 rounded bg-red-500 text-white hover:bg-red-600 transition shadow-sm hidden" title="Finish Exam">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
+                </button>
+
+                <!-- Reset Button -->
+                <button onclick="resetTimer()" id="timer-reset-btn" class="p-1.5 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 transition" title="Reset Timer">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+                </button>
+            </div>
+            
+            <!-- Status Indicator -->
+            <div id="exam-status" class="text-xs font-bold text-gray-500 mt-2 px-4 py-1 rounded-full bg-white border border-gray-200 shadow-sm flex items-center transition-all duration-300">
+                <span id="status-dot" class="inline-block w-2.5 h-2.5 rounded-full bg-gray-400 mr-2 shadow-sm"></span>
+                <span id="status-text">Ready</span>
+            </div>
+        </div>
+
+        <!-- Right Tools -->
+        <div class="flex flex-wrap gap-2 items-center justify-end z-20" id="tool-bar">
+            <input type="file" id="pdf-upload" accept="application/pdf" class="hidden" onchange="loadPDF(this)">
+            <button id="btn-pdf" onclick="document.getElementById('pdf-upload').click()" class="btn-tool bg-white text-blue-600 border border-blue-200 hover:bg-blue-50 px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-sm transition hover:-translate-y-0.5">
+                <span>📂</span> PDF
+            </button>
+            <button id="btn-key" onclick="toggleKeyMode()" class="btn-tool bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-sm transition hover:-translate-y-0.5">
+                <span>🔑</span> Key
+            </button>
+            <button id="btn-calc" onclick="calculateResult()" class="btn-tool bg-gradient-to-r from-emerald-500 to-green-600 text-white hover:from-emerald-600 hover:to-green-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-md transition hover:-translate-y-0.5">
+                <span>✅</span> Calc
+            </button>
+            <!-- Save Button Removed -->
+            <button id="btn-progress" onclick="openProgressModal()" class="btn-tool bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:from-purple-600 hover:to-indigo-700 px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-md transition hover:-translate-y-0.5">
+                <span>📊</span> Progress
+            </button>
+            <button id="btn-setup" onclick="openSetupModal()" class="btn-tool bg-gray-50 text-gray-600 border border-gray-300 hover:bg-gray-100 px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-1 shadow-sm transition" title="Setup Cloud Storage">
+                <span>⚙️</span> Setup
+            </button>
+            <button id="btn-reset" onclick="resetSheet()" class="btn-tool bg-white text-red-600 border border-red-200 hover:bg-red-50 px-3 py-2 rounded-lg text-sm font-semibold shadow-sm transition">
+                Reset
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div id="main-wrapper" class="flex max-w-[1700px] w-full mx-auto flex-grow overflow-hidden relative pb-2 gap-0 shadow-2xl rounded-2xl bg-white border border-white/60">
+        <!-- OMR Container -->
+        <div id="omr-container" class="page-container bg-white p-4 md:p-6 flex flex-col relative z-0">
+            <!-- Header -->
+            <div class="mb-4 header-info flex-shrink-0">
+                <div class="flex flex-col md:flex-row gap-6 items-start">
+                    <div class="w-full md:w-5/12 flex flex-col gap-1">
+                        <div class="paper-input-group"><span class="paper-label">Date:</span><input type="date" id="header-date" class="paper-input cursor-pointer w-full bg-blue-50/30"></div>
+                        <div class="paper-input-group">
+                            <span class="paper-label">Subject:</span>
+                            <select id="header-subject" class="paper-input cursor-pointer w-full bg-blue-50/30">
+                                <option value="" disabled selected>Select Subject</option>
+                                <option>বাংলা ভাষা ও সাহিত্য</option>
+                                <option>English Language and Literature</option>
+                                <option>বাংলাদেশ বিষয়াবলি</option>
+                                <option>আন্তর্জাতিক বিষয়াবলি</option>
+                                <option>ভূগোল, পরিবেশ ও দুর্যোগ ব্যবস্থাপনা</option>
+                                <option>সাধারণ বিজ্ঞান</option>
+                                <option>কম্পিউটার ও তথ্য প্রযুক্তি</option>
+                                <option>গাণিতিক যুক্তি</option>
+                                <option>মানসিক দক্ষতা</option>
+                                <option>নৈতিকতা, মূল্যবোধ ও সুশাসন</option>
+                                <option>General Mathematics & Quantitative Skills</option>
+                                <option>General Knowledge</option>
+                                <option>Basic Computer Knowledge</option>
+                            </select>
+                        </div>
+                        <div class="paper-input-group"><span class="paper-label">Topic:</span><input type="text" id="header-topic" class="paper-input w-full bg-blue-50/30"></div>
+                        <div class="paper-input-group">
+                            <span class="paper-label">Remarks:</span>
+                            <input type="text" id="header-remarks" class="paper-input font-bold text-indigo-700 w-full bg-indigo-50/30" readonly>
+                        </div>
+                    </div>
+                    <div class="w-full md:w-7/12">
+                        <table class="header-table w-full border-collapse bg-white text-center text-sm border border-gray-300 shadow-sm rounded-lg overflow-hidden">
+                            <thead>
+                                <tr class="bg-gray-100 text-gray-700">
+                                    <th class="border border-gray-300 px-2 py-2">Total</th>
+                                    <th class="border border-gray-300 px-2 py-2 text-green-700">Right</th>
+                                    <th class="border border-gray-300 px-2 py-2 text-red-600">Wrong</th>
+                                    <th class="border border-gray-300 px-2 py-2 text-orange-600">Neg.</th>
+                                    <th class="border border-gray-300 px-2 py-2 text-indigo-700 font-bold">Obt.</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="border border-gray-300 h-10 p-0"><input type="text" id="score-total" class="w-full h-full text-center bg-transparent outline-none font-semibold text-gray-800"></td>
+                                    <td class="border border-gray-300 h-10 p-0 bg-green-50/50"><input type="text" id="score-right" class="w-full h-full text-center bg-transparent outline-none font-semibold text-green-700"></td>
+                                    <td class="border border-gray-300 h-10 p-0 bg-red-50/50"><input type="text" id="score-wrong" class="w-full h-full text-center bg-transparent outline-none font-semibold text-red-600"></td>
+                                    <td class="border border-gray-300 h-10 p-0 bg-orange-50/50"><input type="text" id="score-neg" class="w-full h-full text-center bg-transparent outline-none font-semibold text-orange-600"></td>
+                                    <td class="border border-gray-300 h-10 p-0 bg-indigo-50/50"><input type="text" id="score-obtained" class="w-full h-full text-center bg-transparent outline-none font-bold text-indigo-800 text-lg"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="border-b-2 border-gray-200 mt-4 mb-2"></div>
+            </div>
+            <div id="omr-scroll-area" class="overflow-y-auto flex-grow custom-scrollbar">
+                 <div id="omr-grid" class="flex flex-wrap xl:flex-nowrap justify-center gap-2 pb-4"></div>
+            </div>
+        </div>
+        <div id="drag-handle" title="Drag to resize"></div>
+        <div id="pdf-container" class="bg-gray-50/50 relative flex flex-col justify-center items-center">
+             <div class="text-gray-400 flex flex-col items-center">
+                <span class="text-5xl mb-3">📄</span>
+                <span class="font-medium text-lg">PDF Viewer</span>
+                <span class="text-sm text-gray-400 mt-1">Load a question paper to begin</span>
+            </div>
+            <iframe id="pdf-frame" class="w-full h-full absolute inset-0 z-10 bg-white" src=""></iframe>
+        </div>
+    </div>
+
+    <!-- Progress Modal -->
+    <div id="progress-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-5xl h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200">
+            <div class="p-4 border-b flex justify-between items-center bg-gray-50">
+                <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2"><span>📊</span> Performance Analytics</h2>
+                <button onclick="closeProgressModal()" class="text-gray-400 hover:text-red-500 text-2xl transition">&times;</button>
+            </div>
+            <div class="p-4 border-b bg-white flex gap-4">
+                <select id="stat-mode" onchange="updateProgressView()" class="border-2 border-indigo-100 rounded-lg px-3 py-2 font-medium text-gray-700 outline-none focus:border-indigo-500 transition">
+                    <option value="subject">Subject Wise Analysis</option>
+                    <option value="overall">Overall Summary</option>
+                </select>
+                <select id="stat-subject-select" onchange="updateProgressView()" class="border-2 border-gray-200 rounded-lg px-3 py-2 text-gray-700 outline-none focus:border-indigo-500 flex-grow transition"></select>
+            </div>
+            <div class="flex-grow overflow-y-auto p-6 bg-gray-50">
+                <!-- Stats Grid -->
+                <div id="stats-cards" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6"></div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 h-96 relative">
+                    <canvas id="progressChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Setup Modal -->
+    <div id="setup-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-xl rounded-2xl shadow-2xl p-6 border border-gray-200">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2"><span>☁️</span> Connect Your Google Sheet</h2>
+                <button onclick="closeSetupModal()" class="text-gray-400 hover:text-red-500 text-2xl transition">&times;</button>
+            </div>
+            <div class="space-y-4 text-sm text-gray-700">
+                <p>Paste your Google Apps Script Web App URL below to sync your progress.</p>
+                <input type="text" id="google-script-url" placeholder="https://script.google.com/macros/s/..." class="w-full border-2 border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-indigo-500 outline-none transition">
+                <div class="flex justify-end">
+                    <button onclick="saveGoogleConfig()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 font-semibold shadow-md transition">Save Connection</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const totalQuestions = 250;
+        const questionsPerColumn = 50;
+        const totalColumns = 5; 
+        const options = ['ক', 'খ', 'গ', 'ঘ']; 
+        
+        let isKeyMode = false;
+        let examActive = false; 
+        let answerKey = {}; 
+        let userAnswers = {}; 
+        let isResultSaved = false; 
+        
+        let timerInterval = null;
+        let totalSeconds = 0;
+        let isCountdown = true;
+        let progressChartInstance = null;
+
+        const CONFIG_KEY = 'omr_google_sheet_url';
+        const LOCAL_STORAGE_KEY = 'omr_results_local';
+
+        window.onload = function() {
+            initOMR();
+            const headerSub = document.getElementById('header-subject');
+            const statSub = document.getElementById('stat-subject-select');
+            if(headerSub && statSub) {
+                statSub.innerHTML = headerSub.innerHTML;
+                statSub.options[0].text = "All Subjects (Aggregate)";
+            }
+            const savedUrl = localStorage.getItem(CONFIG_KEY);
+            if (savedUrl) document.getElementById('google-script-url').value = savedUrl;
+            updateUIState();
+        };
+
+        // UI STATE MANAGEMENT
+        function updateUIState() {
+            const bubbles = document.querySelectorAll('.bubble');
+            const adminBtns = ['btn-key', 'btn-calc', 'btn-progress', 'btn-setup', 'btn-reset']; 
+            
+            const statusText = document.getElementById('status-text');
+            const statusDot = document.getElementById('status-dot');
+            const stopBtn = document.getElementById('timer-stop-btn');
+            const startBtn = document.getElementById('timer-toggle-btn');
+            const resetBtn = document.getElementById('timer-reset-btn');
+            const timerInput = document.getElementById('timer-input');
+            const statusBox = document.getElementById('exam-status');
+
+            if (examActive) {
+                // Exam Running
+                bubbles.forEach(b => b.classList.remove('locked'));
+                adminBtns.forEach(id => {
+                    const btn = document.getElementById(id);
+                    if(btn) { btn.classList.add('btn-disabled'); btn.disabled = true; }
+                });
+                stopBtn.classList.remove('hidden');
+                startBtn.classList.add('hidden'); 
+                resetBtn.classList.add('hidden'); 
+                timerInput.disabled = true;
+                
+                statusText.innerText = "Exam Active";
+                statusBox.className = "mt-2 flex items-center justify-center text-xs font-bold text-white px-4 py-1 rounded-full bg-indigo-600 border border-indigo-700 shadow-sm transition-all duration-300 animate-pulse";
+                statusDot.className = "w-2 h-2 rounded-full bg-white mr-2";
+            } else if (isKeyMode) {
+                // Teacher Mode
+                bubbles.forEach(b => b.classList.remove('locked'));
+                adminBtns.forEach(id => {
+                    if(id !== 'btn-key') {
+                        const btn = document.getElementById(id);
+                        if(btn) btn.classList.add('btn-disabled');
+                    }
+                });
+                statusText.innerText = "Set Answer Key";
+                statusBox.className = "mt-2 flex items-center justify-center text-xs font-bold text-amber-800 px-4 py-1 rounded-full bg-amber-100 border border-amber-200 shadow-sm transition-all duration-300";
+                statusDot.className = "w-2 h-2 rounded-full bg-amber-500 mr-2";
+            } else {
+                // Default / Stopped
+                bubbles.forEach(b => b.classList.add('locked'));
+                adminBtns.forEach(id => {
+                    const btn = document.getElementById(id);
+                    if(btn) { btn.classList.remove('btn-disabled'); btn.disabled = false; }
+                });
+                
+                if(isResultSaved) {
+                     const btnCalc = document.getElementById('btn-calc');
+                     if(btnCalc) { btnCalc.classList.add('btn-disabled'); btnCalc.disabled = true; }
+                }
+
+                stopBtn.classList.add('hidden');
+                startBtn.classList.remove('hidden');
+                resetBtn.classList.remove('hidden');
+                timerInput.disabled = false;
+                
+                statusText.innerText = totalSeconds === 0 ? "Ready to Start" : "Exam Stopped";
+                statusBox.className = "mt-2 flex items-center justify-center text-xs font-bold text-gray-600 px-4 py-1 rounded-full bg-white border border-gray-200 shadow-sm transition-all duration-300";
+                statusDot.className = "w-2 h-2 rounded-full bg-gray-400 mr-2";
+            }
+        }
+
+        // TIMER LOGIC
+        function formatTime(s) {
+            const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+            return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+        }
+        function updateTimerDisplay() { 
+            document.getElementById('timer-display').innerText = formatTime(totalSeconds); 
+        }
+
+        function toggleTimer() {
+            if (examActive) return; 
+            const input = document.getElementById('timer-input');
+            if(totalSeconds === 0) {
+                const m = parseInt(input.value);
+                if (!m || m <= 0) {
+                    alert("Please set time in minutes!");
+                    return; // Stop here, do not start count up
+                }
+                totalSeconds = m * 60; 
+                isCountdown = true; 
+                input.value = ''; 
+            }
+            // Logic handled above: if 0 and no input, we stop.
+            // If user paused mid-exam, totalSeconds > 0, so we continue.
+
+            isResultSaved = false;
+            examActive = true;
+            updateUIState();
+
+            timerInterval = setInterval(() => {
+                if(isCountdown) {
+                    if(totalSeconds > 0) { totalSeconds--; updateTimerDisplay(); } 
+                    else { stopExam(true); } 
+                } else { 
+                    totalSeconds++; updateTimerDisplay(); 
+                }
+            }, 1000);
+        }
+
+        function stopExam(timeUp = false) {
+            clearInterval(timerInterval);
+            examActive = false;
+            
+            totalSeconds = 0; 
+            updateTimerDisplay();
+            
+            updateUIState();
+            
+            if(timeUp) {
+                const statusBox = document.getElementById('exam-status');
+                const statusText = document.getElementById('status-text');
+                const statusDot = document.getElementById('status-dot');
+                statusText.innerText = "Time's Up!";
+                statusBox.className = "mt-2 flex items-center justify-center text-xs font-bold text-white px-4 py-1 rounded-full bg-red-600 border border-red-700 shadow-sm";
+                statusDot.className = "w-2 h-2 rounded-full bg-white mr-2";
+            }
+        }
+
+        function resetTimer() {
+            stopExam(); 
+            totalSeconds = 0;
+            updateTimerDisplay();
+            document.getElementById('timer-input').value = '';
+            isResultSaved = false; 
+            updateUIState();
+        }
+
+        // OMR LOGIC
+        function initOMR() {
+            const gridContainer = document.getElementById('omr-grid');
+            gridContainer.innerHTML = '';
+            const fragment = document.createDocumentFragment();
+            for (let col = 0; col < totalColumns; col++) {
+                const columnDiv = document.createElement('div');
+                columnDiv.className = 'omr-column flex flex-col w-full sm:w-[48%] md:w-[31%] xl:w-[19%] mb-4 xl:mb-0';
+                const rangeStart = (col * questionsPerColumn) + 1;
+                const rangeEnd = (col + 1) * questionsPerColumn;
+                for (let q = rangeStart; q <= rangeEnd; q++) {
+                    if (q > totalQuestions) break;
+                    const row = document.createElement('div');
+                    row.className = 'question-row flex items-center py-0.5';
+                    row.dataset.question = q;
+                    const numSpan = document.createElement('span');
+                    numSpan.className = 'question-num w-8 text-right font-bold text-gray-600 mr-2 text-xs';
+                    numSpan.textContent = q + '.';
+                    row.appendChild(numSpan);
+                    const optsDiv = document.createElement('div');
+                    optsDiv.className = 'flex';
+                    options.forEach(opt => {
+                        const bubble = document.createElement('div');
+                        bubble.className = 'bubble locked'; 
+                        bubble.textContent = opt;
+                        bubble.dataset.opt = opt;
+                        optsDiv.appendChild(bubble);
+                    });
+                    row.appendChild(optsDiv);
+                    columnDiv.appendChild(row);
+                }
+                fragment.appendChild(columnDiv);
+            }
+            gridContainer.appendChild(fragment);
+            
+            gridContainer.addEventListener('click', function(e) {
+                const bubble = e.target.closest('.bubble');
+                if (!bubble) return;
+                if (!examActive && !isKeyMode) return; 
+                const row = bubble.closest('.question-row');
+                if (!row) return;
+                handleBubbleClick(bubble, row, row.dataset.question, bubble.dataset.opt);
+            });
+        }
+
+        function handleBubbleClick(bubble, row, questionNum, optValue) {
+            const bubblesInRow = bubble.parentElement.children;
+            if (isKeyMode) {
+                const isSelected = bubble.classList.contains('key-filled');
+                for (let b of bubblesInRow) b.classList.remove('key-filled');
+                if (!isSelected) {
+                    bubble.classList.add('key-filled');
+                    answerKey[questionNum] = optValue;
+                } else {
+                    delete answerKey[questionNum];
+                }
+            } else if (examActive) {
+                if (userAnswers[questionNum]) return; 
+                bubble.classList.add('filled');
+                userAnswers[questionNum] = optValue;
+            }
+        }
+
+        function toggleKeyMode() {
+            if (examActive) return; 
+            isKeyMode = !isKeyMode;
+            const btn = document.getElementById('btn-key');
+            document.querySelectorAll('.bubble').forEach(b => b.classList.remove('correct', 'wrong'));
+            if (isKeyMode) {
+                btn.classList.add('bg-green-100', 'text-green-700');
+                btn.classList.remove('bg-amber-50', 'text-amber-700');
+            } else {
+                btn.classList.remove('bg-green-100', 'text-green-700');
+                btn.classList.add('bg-amber-50', 'text-amber-700');
+            }
+            updateUIState(); 
+            refreshGrid(isKeyMode ? 'key' : 'user');
+        }
+
+        function refreshGrid(type) {
+            const rows = document.querySelectorAll('.question-row');
+            rows.forEach(row => {
+                const q = row.dataset.question;
+                const bubbles = row.getElementsByClassName('bubble');
+                for (let b of bubbles) {
+                    b.classList.remove('filled', 'key-filled', 'correct', 'wrong');
+                    const val = b.textContent;
+                    if (type === 'key' && answerKey[q] === val) b.classList.add('key-filled');
+                    if (type === 'user' && userAnswers[q] === val) b.classList.add('filled');
+                }
+            });
+        }
+
+        async function calculateResult() {
+            if (examActive) return; 
+            if (isKeyMode) { alert("Save Answer Key first."); return; }
+            if (Object.keys(answerKey).length === 0 && !confirm("No Answer Key! Calculate anyway?")) return;
+            
+            if (isResultSaved) {
+                alert("Result already calculated and saved. Please Reset to start a new exam.");
+                return;
+            }
+
+            let right = 0, wrong = 0;
+            const negVal = parseFloat(document.getElementById('neg-mark-val').value) || 0;
+            
+            for (const [q, userOpt] of Object.entries(userAnswers)) {
+                const correct = answerKey[q];
+                const row = document.querySelector(`.question-row[data-question="${q}"]`);
+                if (correct) {
+                    if (userOpt === correct) {
+                        right++;
+                        if(row) highlightBubble(row, userOpt, 'correct');
+                    } else {
+                        wrong++;
+                        if(row) {
+                            highlightBubble(row, userOpt, 'wrong');
+                            highlightBubble(row, correct, 'key-filled');
+                        }
+                    }
+                }
+            }
+            const total = Object.keys(answerKey).length || 500;
+            const obtained = right - (wrong * negVal);
+            document.getElementById('score-total').value = total;
+            document.getElementById('score-right').value = right;
+            document.getElementById('score-wrong').value = wrong;
+            document.getElementById('score-neg').value = (wrong * negVal).toFixed(2);
+            document.getElementById('score-obtained').value = obtained.toFixed(2);
+            const pct = (obtained / total) * 100;
+            const remarks = pct > 70 ? "On right Track" : pct >= 50 ? "Improve Need" : "Fail, Read more";
+            document.getElementById('header-remarks').value = remarks;
+
+            isResultSaved = true;
+            updateUIState(); 
+
+            // Auto Save triggered here
+            await saveAndRecord();
+        }
+
+        function highlightBubble(row, text, cls) {
+            const bubbles = row.getElementsByClassName('bubble');
+            for(let b of bubbles) if(b.textContent === text) b.classList.add(cls);
+        }
+
+        // DATA LAYER
+        function getScriptUrl() { return localStorage.getItem(CONFIG_KEY); }
+
+        async function saveData(dataObj) {
+            const url = getScriptUrl();
+            if (url && url.startsWith('http')) {
+                try {
+                    await fetch(url, {
+                        method: 'POST',
+                        mode: 'no-cors', 
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify(dataObj)
+                    });
+                    // Notification of success to user
+                    const notify = document.createElement('div');
+                    notify.className = "fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-xl z-50 font-bold transition-opacity duration-500";
+                    notify.innerText = "✅ Result Saved Automatically!";
+                    document.body.appendChild(notify);
+                    setTimeout(() => { notify.style.opacity = 0; setTimeout(() => notify.remove(), 500); }, 3000);
+                    
+                    return true;
+                } catch (e) {
+                    console.error("Cloud Save Error", e);
+                    alert("⚠️ Error saving to cloud.");
+                }
+            } else {
+                alert("⚠️ No Google Sheet connected. Result saved locally only.");
+            }
+            const existing = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
+            existing.push(dataObj);
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(existing));
+            return true;
+        }
+
+        async function loadData() {
+            const url = getScriptUrl();
+            if (url && url.startsWith('http')) {
+                try {
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    return data;
+                } catch (e) { console.error("Cloud Load Error", e); }
+            }
+            return JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
+        }
+
+        // UI UTILS
+        async function saveAndRecord() {
+            if(examActive) return; 
+            
+            const rawDate = document.getElementById('header-date').value;
+            let formattedDate = "";
+            if (rawDate) {
+                const parts = rawDate.split('-');
+                if(parts.length === 3) {
+                    formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                } else {
+                    const d = new Date();
+                    formattedDate = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+                }
+            } else {
+                 const d = new Date();
+                 formattedDate = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+            }
+
+            const subject = document.getElementById('header-subject').value || "Unknown";
+            const topic = document.getElementById('header-topic').value || "";
+            const remarks = document.getElementById('header-remarks').value || "";
+            const total = parseInt(document.getElementById('score-total').value) || 0;
+            const right = parseInt(document.getElementById('score-right').value) || 0;
+            const wrong = parseInt(document.getElementById('score-wrong').value) || 0;
+            const neg = parseFloat(document.getElementById('score-neg').value) || 0;
+            const obt = parseFloat(document.getElementById('score-obtained').value) || 0;
+
+            if(total === 0) { alert("Calculate result first."); return; }
+
+            const record = { date: formattedDate, subject, topic, total_questions: total, right_answers: right, wrong_answers: wrong, obtained_marks: obt, remarks, timestamp: Date.now() };
+            await saveData(record);
+        }
+
+        async function openProgressModal() {
+            document.getElementById('progress-modal').classList.remove('hidden');
+            await updateProgressView();
+        }
+        function closeProgressModal() { document.getElementById('progress-modal').classList.add('hidden'); }
+        
+        async function updateProgressView() {
+            const mode = document.getElementById('stat-mode').value;
+            const subjectSelect = document.getElementById('stat-subject-select');
+            const subject = subjectSelect.value;
+            const container = document.getElementById('stats-cards');
+            subjectSelect.style.display = mode === 'subject' ? 'block' : 'none';
+            container.innerHTML = '<div class="col-span-full text-center py-10">Loading Data...</div>';
+            
+            const data = await loadData();
+            if (!data || data.length === 0) { container.innerHTML = '<div class="col-span-full text-center py-10 text-gray-500">No records found.</div>'; return; }
+            
+            if (mode === 'subject') renderSubjectStats(data, subject); else renderOverallStats(data);
+        }
+
+        function renderSubjectStats(data, subject) {
+            const filtered = data.filter(d => d.subject === subject);
+            
+            if (filtered.length === 0) {
+                document.getElementById('stats-cards').innerHTML = '<div class="col-span-full text-center text-gray-500">No data for this subject.</div>';
+                return;
+            }
+
+            const attempts = filtered.length;
+            const totalQ = filtered.reduce((s, d) => s + parseInt(d.total_questions||0), 0);
+            const totalRight = filtered.reduce((s, d) => s + parseInt(d.right_answers||0), 0);
+            const totalWrong = filtered.reduce((s, d) => s + parseInt(d.wrong_answers||0), 0);
+            const totalObt = filtered.reduce((s, d) => s + parseFloat(d.obtained_marks||0), 0);
+            const totalSolved = totalRight + totalWrong;
+
+            const cards = [
+                { label: "Total Exams", val: attempts, color: "bg-blue-100 text-blue-700" },
+                { label: "Total Questions", val: totalQ, color: "bg-gray-100 text-gray-700" },
+                { label: "Solved (Attempted)", val: totalSolved, color: "bg-indigo-100 text-indigo-700" },
+                { label: "Right Answers", val: totalRight, color: "bg-green-100 text-green-700" },
+                { label: "Wrong Answers", val: totalWrong, color: "bg-red-100 text-red-700" },
+                { label: "Total Obtained", val: totalObt.toFixed(1), color: "bg-purple-100 text-purple-700 font-extrabold" }
+            ];
+            
+            document.getElementById('stats-cards').innerHTML = cards.map(c => `
+                <div class="${c.color} p-4 rounded-xl text-center shadow-sm">
+                    <div class="text-xs font-bold uppercase opacity-70">${c.label}</div>
+                    <div class="text-xl font-bold truncate">${c.val}</div>
+                </div>
+            `).join('');
+            
+            renderChart({
+                labels: filtered.map((d, i) => `Exam ${i+1}`),
+                datasets: [{ label: 'Marks', data: filtered.map(d => d.obtained_marks), backgroundColor: 'rgba(79, 70, 229, 0.6)' }]
+            }, 'bar');
+        }
+
+        function renderOverallStats(data) {
+            const attempts = data.length;
+            const totalQ = data.reduce((s, d) => s + parseInt(d.total_questions||0), 0);
+            const totalRight = data.reduce((s, d) => s + parseInt(d.right_answers||0), 0);
+            const totalWrong = data.reduce((s, d) => s + parseInt(d.wrong_answers||0), 0);
+            const totalObt = data.reduce((s, d) => s + parseFloat(d.obtained_marks||0), 0);
+            const totalSolved = totalRight + totalWrong;
+
+            const cards = [
+                { label: "Total Exams", val: attempts, color: "bg-blue-100 text-blue-700" },
+                { label: "Total Questions", val: totalQ, color: "bg-gray-100 text-gray-700" },
+                { label: "Solved (Attempted)", val: totalSolved, color: "bg-indigo-100 text-indigo-700" },
+                { label: "Right Answers", val: totalRight, color: "bg-green-100 text-green-700" },
+                { label: "Wrong Answers", val: totalWrong, color: "bg-red-100 text-red-700" },
+                { label: "Total Obtained", val: totalObt.toFixed(1), color: "bg-purple-100 text-purple-700 font-extrabold" }
+            ];
+
+            document.getElementById('stats-cards').innerHTML = cards.map(c => `
+                <div class="${c.color} p-4 rounded-xl text-center shadow-sm">
+                    <div class="text-xs font-bold uppercase opacity-70">${c.label}</div>
+                    <div class="text-xl font-bold truncate">${c.val}</div>
+                </div>
+            `).join('');
+
+            const subMap = {};
+            data.forEach(d => {
+                if(!subMap[d.subject]) subMap[d.subject] = { obt: 0, count: 0 };
+                subMap[d.subject].obt += parseFloat(d.obtained_marks||0);
+                subMap[d.subject].count++;
+            });
+            const labels = Object.keys(subMap);
+            const avgData = labels.map(s => (subMap[s].obt / subMap[s].count).toFixed(1));
+
+            renderChart({ labels: labels, datasets: [{ label: 'Avg Score', data: avgData, backgroundColor: 'rgba(16, 185, 129, 0.6)' }] }, 'bar');
+        }
+
+        function renderChart(data, type) {
+            const ctx = document.getElementById('progressChart').getContext('2d');
+            if (progressChartInstance) progressChartInstance.destroy();
+            progressChartInstance = new Chart(ctx, { type: type, data: data, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } } });
+        }
+
+        function openSetupModal() { document.getElementById('setup-modal').classList.remove('hidden'); }
+        function closeSetupModal() { document.getElementById('setup-modal').classList.add('hidden'); }
+        function saveGoogleConfig() { localStorage.setItem(CONFIG_KEY, document.getElementById('google-script-url').value.trim()); closeSetupModal(); alert("Saved!"); }
+
+        window.loadPDF = function(input) { if(input.files[0]) { document.getElementById('pdf-frame').src = URL.createObjectURL(input.files[0]); document.getElementById('main-wrapper').classList.add('split-view'); } };
+        
+        // Resize Logic
+        const resizer = document.getElementById('drag-handle');
+        const left = document.getElementById('omr-container');
+        let x = 0, w = 0;
+        resizer.addEventListener('mousedown', e => { x = e.clientX; w = left.getBoundingClientRect().width; document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp); });
+        function onMove(e) { left.style.width = `${((w + (e.clientX - x)) / resizer.parentElement.offsetWidth) * 100}%`; }
+        function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
+
+        window.toggleTimer = toggleTimer;
+        window.stopExam = stopExam;
+        window.resetTimer = resetTimer;
+        window.toggleKeyMode = toggleKeyMode;
+        window.calculateResult = calculateResult;
+        window.saveAndRecord = saveAndRecord;
+        window.openProgressModal = openProgressModal;
+        window.closeProgressModal = closeProgressModal;
+        window.updateProgressView = updateProgressView;
+        window.openSetupModal = openSetupModal;
+        window.closeSetupModal = closeSetupModal;
+        window.saveGoogleConfig = saveGoogleConfig;
+        
+        window.resetSheet = function() {
+            if(!confirm("Clear everything?")) return;
+            userAnswers = {};
+            resetTimer(); 
+            document.querySelectorAll('.bubble').forEach(b => { b.classList.remove('filled', 'correct', 'wrong'); if(!isKeyMode) b.classList.remove('key-filled'); });
+            ['score-right','score-wrong','score-neg','score-obtained'].forEach(id => document.getElementById(id).value = '');
+            isResultSaved = false; 
+            updateUIState(); 
+        }
+    </script>
+</body>
+</html>
